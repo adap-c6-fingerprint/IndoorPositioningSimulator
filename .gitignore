@@ -1,0 +1,8 @@
+# Swift Package Manager build output and local workspace state
+.build/
+.swiftpm/
+
+# macOS and Xcode user state
+.DS_Store
+xcuserdata/
+*.xcuserstate
