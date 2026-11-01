@@ -11,6 +11,7 @@ final class SimulatorAppModel {
     static let walkingSpeedMetersPerSecond = 1.125
     private static let lastIMDFPathKey = "IndoorSensorSimulator.lastIMDFPath"
     private static let selectedSimulatorIDKey = "IndoorSensorSimulator.selectedSimulatorID"
+    private static let mapPathsKey = "IndoorSensorSimulator.mapPaths"
 
     enum Selection: Equatable {
         case user
@@ -26,6 +27,8 @@ final class SimulatorAppModel {
     private(set) var connectedClientCount = 0
     private(set) var bootedSimulators: [BootedXcodeSimulator] = []
     private(set) var coreLocationStatus = "대기 중"
+    private(set) var selectedMapPreset: SimulatorMapPreset?
+    private(set) var mapPaths: [String: String]
     var injectsCoreLocation = true
     var usesRadioPositioning = true {
         didSet {
@@ -49,7 +52,7 @@ final class SimulatorAppModel {
     var selectedSimulatorID: String? {
         didSet {
             guard selectedSimulatorID != oldValue else { return }
-            UserDefaults.standard.set(
+            defaults.set(
                 selectedSimulatorID,
                 forKey: Self.selectedSimulatorIDKey
             )
@@ -60,6 +63,13 @@ final class SimulatorAppModel {
 
     private var temporaryDirectories: [URL] = []
     private var scenariosByLevelID: [String: IMDFSimulationScenario] = [:]
+    private struct MapSession {
+        let levelID: String?
+        let scenarios: [String: IMDFSimulationScenario]
+    }
+    private var sessionsByPath: [String: MapSession] = [:]
+    private var currentSourcePath: String?
+    private let defaults: UserDefaults
     private var didLoadCommandLineIMDF = false
     private var activeDirections: [SimulationMovementDirection] = []
     private var clockTask: Task<Void, Never>?
@@ -69,10 +79,13 @@ final class SimulatorAppModel {
     private let locationInjector = XcodeSimulatorLocationInjector()
     private var sessionServer: SimulationSessionServer?
 
-    init() {
-        selectedSimulatorID = UserDefaults.standard.string(
+    init(defaults: UserDefaults = .standard, startsServices: Bool = true) {
+        self.defaults = defaults
+        mapPaths = defaults.dictionary(forKey: Self.mapPathsKey) as? [String: String] ?? [:]
+        selectedSimulatorID = defaults.string(
             forKey: Self.selectedSimulatorIDKey
         )
+        guard startsServices else { return }
         do {
             let server = try SimulationSessionServer()
             server.onClientCountChanged = { [weak self] count in
@@ -122,7 +135,7 @@ final class SimulatorAppModel {
         didLoadCommandLineIMDF = true
         let path = ProcessInfo.processInfo.environment["IMDF_SIMULATOR_SOURCE"]
             ?? ProcessInfo.processInfo.arguments.dropFirst().first
-            ?? UserDefaults.standard.string(forKey: Self.lastIMDFPathKey)
+            ?? defaults.string(forKey: Self.lastIMDFPathKey)
         guard let path, FileManager.default.fileExists(atPath: path) else { return }
         loadIMDF(at: URL(fileURLWithPath: path))
     }
@@ -146,15 +159,23 @@ final class SimulatorAppModel {
         }
     }
 
-    func chooseIMDF() {
+    func openMap(_ preset: SimulatorMapPreset) {
+        guard let path = mapPaths[preset.rawValue], FileManager.default.fileExists(atPath: path) else {
+            chooseIMDF(for: preset)
+            return
+        }
+        loadIMDF(at: URL(fileURLWithPath: path), preset: preset)
+    }
+
+    func chooseIMDF(for preset: SimulatorMapPreset? = nil) {
         let panel = NSOpenPanel()
-        panel.title = "IMDF 폴더 또는 ZIP 열기"
+        panel.title = preset.map { "\($0.title) IMDF 폴더 또는 ZIP 등록" } ?? "IMDF 폴더 또는 ZIP 열기"
         panel.prompt = "열기"
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        loadIMDF(at: url)
+        loadIMDF(at: url, preset: preset)
     }
 
     func chooseScenario() {
@@ -211,17 +232,44 @@ final class SimulatorAppModel {
         }
     }
 
-    func loadIMDF(at sourceURL: URL) {
+    func loadIMDF(at sourceURL: URL, preset: SimulatorMapPreset? = nil) {
         do {
             let directory = try resolveIMDFDirectory(sourceURL)
             let decodedMap = try IMDFArchiveLoader.load(from: directory)
-            scenariosByLevelID.removeAll()
-            map = decodedMap
-            let initialLevel = decodedMap.levels.first { $0.ordinal == 4 }
+            let path = sourceURL.standardizedFileURL.path
+            synchronizeScenario()
+            if let currentSourcePath {
+                sessionsByPath[currentSourcePath] = .init(
+                    levelID: selectedLevel?.id, scenarios: scenariosByLevelID
+                )
+            }
+            let saved = sessionsByPath[path]
+            let initialLevel = decodedMap.levels.first { $0.id == saved?.levelID }
+                ?? decodedMap.levels.first { $0.ordinal == 4 }
                 ?? decodedMap.levels.first
             guard let initialLevel else { throw IMDFArchiveError.missingGeometry }
-            try configureDefaultScenario(for: initialLevel, in: decodedMap)
-            UserDefaults.standard.set(sourceURL.path, forKey: Self.lastIMDFPathKey)
+            // 먼저 새 도면의 실행 상태를 준비해, 읽기 실패 시 기존 지도·위치를 유지한다.
+            let nextScenario = try saved?.scenarios[initialLevel.id]
+                ?? makeDefaultScenario(for: initialLevel, in: decodedMap)
+            let nextSimulator = try nextScenario.makeSimulator(calculatesEstimate: false)
+            activeDirections.removeAll()
+            map = decodedMap
+            scenariosByLevelID = saved?.scenarios ?? [:]
+            selectedLevel = initialLevel
+            scenario = nextScenario
+            simulator = nextSimulator
+            snapshot = nextSimulator.snapshot
+            scenariosByLevelID[initialLevel.id] = nextScenario
+            currentSourcePath = path
+            selection = .user
+            selectedMapPreset = preset ?? SimulatorMapPreset.allCases.first { mapPaths[$0.rawValue] == path }
+            if let preset {
+                mapPaths[preset.rawValue] = path
+                defaults.set(mapPaths, forKey: Self.mapPathsKey)
+            }
+            defaults.set(path, forKey: Self.lastIMDFPathKey)
+            sensorGenerator.invalidateRadioObservations()
+            publishFrame(deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -371,9 +419,6 @@ final class SimulatorAppModel {
         in map: IMDFMap,
         initialCoordinate: GeographicCoordinate? = nil
     ) throws {
-        let reference = try level.coordinateReference()
-        let bounds = try level.localBounds()
-
         if var cachedScenario = scenariosByLevelID[level.id] {
             if let initialCoordinate {
                 cachedScenario.initialPosition = IndoorCoordinate(
@@ -392,6 +437,25 @@ final class SimulatorAppModel {
             return
         }
 
+        let scenario = try makeDefaultScenario(for: level, in: map, initialCoordinate: initialCoordinate)
+        let nextSimulator = try scenario.makeSimulator(calculatesEstimate: false)
+        selectedLevel = level
+        self.scenario = scenario
+        scenariosByLevelID[level.id] = scenario
+        simulator = nextSimulator
+        snapshot = nextSimulator.snapshot
+        selection = .user
+        sensorGenerator.invalidateRadioObservations()
+        publishFrame(deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz)
+    }
+
+    private func makeDefaultScenario(
+        for level: IMDFMapLevel,
+        in map: IMDFMap,
+        initialCoordinate: GeographicCoordinate? = nil
+    ) throws -> IMDFSimulationScenario {
+        let reference = try level.coordinateReference()
+        let bounds = try level.localBounds()
         let width = bounds.maximumEast - bounds.minimumEast
         let height = bounds.maximumNorth - bounds.minimumNorth
         let insetEast = max(2, width * 0.15)
@@ -431,7 +495,7 @@ final class SimulatorAppModel {
             levelID: level.id,
             levelOrdinal: level.ordinal
         )
-        let scenario = IMDFSimulationScenario(
+        return IMDFSimulationScenario(
             name: "\(map.venueName) · \(level.shortName ?? level.name)",
             map: mapReference,
             coordinateReference: reference,
@@ -452,14 +516,6 @@ final class SimulatorAppModel {
                 )
             }
         )
-        selectedLevel = level
-        self.scenario = scenario
-        scenariosByLevelID[level.id] = scenario
-        simulator = try scenario.makeSimulator(calculatesEstimate: false)
-        snapshot = simulator?.snapshot
-        selection = .user
-        sensorGenerator.invalidateRadioObservations()
-        publishFrame(deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz)
     }
 
     private func synchronizeScenario() {

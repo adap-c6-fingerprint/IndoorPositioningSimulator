@@ -27,6 +27,10 @@ let package = Package(
         .testTarget(
             name: "IndoorPositioningSimulationTests",
             dependencies: ["IndoorPositioningSimulation"]
+        ),
+        .testTarget(
+            name: "IMDFSimulatorTests",
+            dependencies: ["IMDFSimulator"]
         )
     ]
 )

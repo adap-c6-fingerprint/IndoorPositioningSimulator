@@ -144,6 +144,36 @@ private struct SimulatorSidebar: View {
 
     var body: some View {
         List {
+            Section("지도 전환") {
+                ForEach(SimulatorMapPreset.allCases) { preset in
+                    Button {
+                        model.openMap(preset)
+                    } label: {
+                        HStack {
+                            Label(preset.title, systemImage: "map")
+                            Spacer()
+                            if model.selectedMapPreset == preset {
+                                Image(systemName: "checkmark").foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("map-preset-\(preset.rawValue)")
+                    .accessibilityAddTraits(model.selectedMapPreset == preset ? .isSelected : [])
+                }
+                Menu("도면 설정…", systemImage: "gearshape") {
+                    ForEach(SimulatorMapPreset.allCases) { preset in
+                        Button("\(preset.title) 도면 등록·변경…") {
+                            model.chooseIMDF(for: preset)
+                        }
+                    }
+                }
+                Text("처음 한 번 폴더나 ZIP을 등록하면 버튼으로 바로 전환할 수 있어요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Button("IMDF 열기…", systemImage: "folder") {
                     model.chooseIMDF()
