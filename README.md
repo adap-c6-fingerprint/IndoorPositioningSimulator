@@ -167,6 +167,8 @@ iOS 앱에 현재 위치 표시나 길찾기 기능이 없다면 이 도구가 �
 
 ### 실제 iPhone / Po:book 연결
 
+다른 Mac에 처음 설치하거나 다른 AI에게 작업을 인계한다면 [상세 설정·검증 가이드](Docs/PhysicalDeviceSetup.md)를 따라 진행하세요.
+
 `postech-library`에는 별도 패키지 추가 없이 위치·층·방향을 읽는 Debug 브리지가 있습니다.
 
 1. Mac과 iPhone을 **같은 Wi-Fi**에 연결합니다.
