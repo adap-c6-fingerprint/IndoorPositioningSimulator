@@ -193,6 +193,8 @@ Xcode 상단에서 아래와 같이 선택한다.
 | Run destination | 연결한 **실제 iPhone 이름** |
 | Run의 Build Configuration | **Debug** |
 
+일반 `fingerprint-library` scheme의 Debug도 실제 iPhone에서 동일하게 가상 위치를 기본 선택한다. 이 테스트 scheme은 명시적인 설정 예시이며 필수 조건은 아니다.
+
 이후 **Product → Scheme → Edit Scheme… → Run → Arguments → Environment Variables**를 확인한다.
 
 | 변수 | 값 | 기본 활성화 상태 |
@@ -227,9 +229,9 @@ Xcode 상단에서 아래와 같이 선택한다.
 
 ### 앱을 다시 실행할 때 주의할 동작
 
-- 앱 안에 저장한 사용자 설정이 없을 때 실제 iPhone의 기본 실행은 실제 Core Location을 사용한다.
-- 실제 iPhone의 Debug 빌드에 `INDOOR_POSITION_SOURCE=simulation`을 전달했을 때 Mac 위치 공급자를 선택한다.
-- 앱을 완전히 종료한 뒤 홈 화면 아이콘으로 새로 실행하면 Xcode scheme의 환경 변수가 전달되지 않는다. 사용자 설정이 없으면 **Po-book-Mac-Simulation → 실제 iPhone → ⌘R**로 시작하거나, Debug 지도의 **시뮬레이터** 화면에서 Mac 연결을 저장한다.
+- Debug 실제 iPhone의 기본 실행은 Mac 가상 위치다. 배포용 Release는 Core Location을 사용하며 저장된 Debug 설정을 읽지 않는다.
+- Debug는 실제 iPhone과 iOS Simulator 모두 Mac 위치 공급자를 기본 선택한다. `INDOOR_POSITION_SOURCE=simulation`이나 별도 scheme이 없어도 된다.
+- 홈 화면 아이콘으로 새로 실행한 Debug 앱도 Mac 가상 위치를 기본 선택한다. 실제 위치를 명시해 저장한 경우에는 그 선택이 우선하며, **실행 설정으로 되돌리기**를 누르면 기본 가상 위치로 복원한다.
 - 테스트 중 연결이 끊겼다고 실제 위치로 자동 전환하지 않는다. 가상 위치를 비우고 Mac에 다시 연결한다.
 - Release에서는 이 TCP 위치 공급 코드를 포함하지 않는다. 이 설정을 TestFlight/App Store 설치본에 그대로 적용할 수 있다고 가정하지 않는다.
 
@@ -292,7 +294,7 @@ cp Secrets.example.xcconfig Secrets.xcconfig
 | 복수 컨트롤러 안내 | 불필요한 컨트롤러를 종료하거나 `INDOOR_SIMULATOR_HOST`로 대상을 지정 |
 | 연결 직후 오래되거나 유효하지 않은 위치 오류 | Mac과 iPhone의 날짜·시간 및 수신 중인 좌표를 확인. 프레임의 시간 검증을 무작정 제거하지 않음 |
 | 기기에는 빌드되지만 책 검색 실패 | 지도 연결 문제와 분리해 개발 중계 토큰·API 오류를 확인 |
-| 홈 화면으로 새로 열자 실제 위치로 바뀜 | 사용자 설정 없이 scheme의 환경 변수로만 연결했던 경우의 기본 동작. Debug 지도의 시뮬레이터 화면에서 Mac 연결을 저장하거나 Xcode 테스트 scheme으로 다시 실행 |
+| Debug 기기에서 실제 위치가 표시됨 | 최신 Debug 설치본인지 확인하고 연결 화면에서 실제 위치 사용을 저장했는지 점검. 실행 설정으로 되돌리면 기본 가상 위치로 복원. Release의 실제 위치 사용은 배포 정책에 따른 정상 동작 |
 
 ### Mac에서 확인할 수 있는 진단 명령
 
@@ -337,7 +339,7 @@ dns-sd -B _indoor-sim._tcp local.
 
 | 실행 환경 | `INDOOR_POSITION_SOURCE` | 위치 공급자 / 연결 |
 | --- | --- | --- |
-| Debug 실제 iPhone | 미지정 | 실제 Core Location |
+| Debug 실제 iPhone | 미지정 | Mac의 가상 위치. Bonjour 자동 검색 |
 | Debug 실제 iPhone | `simulation` | Mac의 가상 위치. 호스트 미지정 시 Bonjour 검색 |
 | Debug iOS Simulator | 미지정 | 가상 위치. 호스트 미지정 시 `127.0.0.1:57575` |
 | Debug 기기 또는 Simulator | `live` | 실제 Core Location 경로 |
@@ -391,6 +393,14 @@ xcodebuild test \
 의존성 신뢰 확인이나 Xcode 구성요소 설치가 필요하면 해당 환경에서 먼저 해결한다. `CODE_SIGNING_ALLOWED=NO`는 여기의 **Simulator 자동 검사** 예시다. 실제 iPhone에 설치할 빌드에는 개발 서명이 필요하다.
 
 ## 15. 기존 검증 결과와 남은 확인
+
+최신 Debug/Release 기본값 변경에서 확인한 사실:
+
+- 일반 Debug scheme으로 실제 iPhone용 앱을 개발 서명해 설치했다. 시뮬레이터 선택 환경 변수 없이 홈 화면에서 직접 실행한 앱에 **Mac 위치 수신 중**이 표시되는 것을 사용자가 확인했다.
+- 관련 iOS 검사 20개가 통과했고, `automatic` 채널의 Release 빌드도 성공했다.
+- Debug 바이너리에는 가상 위치 공급자·Debug 연결 설정·연결 화면이 있으며, Release 바이너리에서는 이 심볼이 모두 제외되고 Core Location 공급자가 남아 있음을 확인했다.
+- Release 검증에는 비운영 테스트 토큰을 사용했으며 해당 산출물을 설치·배포하지 않았다.
+- 실기기의 전체 층 변경·단절·재연결까지 완료했다고 확대 해석하지 않는다. 아래 기록은 단계별 과거 검증 내역이다.
 
 2026-11-04 기능 구현 당시 확인한 사실:
 

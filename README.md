@@ -184,7 +184,7 @@ Mac은 Bonjour `_indoor-sim._tcp` 서비스를 알리고, Po:book은 이를 자�
 `INDOOR_SIMULATOR_HOST`를 활성화하고 Mac 앱의 **iPhone 연결 → 직접 연결 주소** 또는 Wi-Fi IP를 입력하세요.
 TCP 포트는 기본 `57575`입니다. USB는 설치·디버깅에 쓸 수 있으며 데이터 연결에는 같은 로컬 네트워크가 필요합니다.
 
-Po:book 앱 안에 별도로 저장한 연결 설정이 없다면, 완전히 종료한 뒤 기본 scheme이나 홈 화면에서 새로 실행할 때 실제 iPhone의 실제 위치를 사용합니다. 앱 안에서 저장한 설정은 **시뮬레이터 → 실행 설정으로 되돌리기**로 해제합니다.
+Po:book은 일반 scheme과 홈 화면 실행을 포함해 **Debug이면 실제 iPhone에서도 Mac 가상 위치가 기본**입니다. 배포용 **Release는 Core Location만 사용**합니다. Debug에서 실제 위치가 필요하면 연결 화면에서 전환하고, **실행 설정으로 되돌리기**로 기본 가상 위치를 복원합니다.
 실제 iPhone의 가상 위치는 앱의 Debug 위치 공급자로 전달됩니다. **Core Location도 주입** 토글은 iOS Simulator 전용입니다.
 로컬 네트워크 권한은 [Apple의 로컬 네트워크 안내](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)를 참고하세요.
 
