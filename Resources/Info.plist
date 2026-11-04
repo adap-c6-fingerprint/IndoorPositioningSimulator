@@ -24,5 +24,11 @@
 	<string>15.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 네트워크의 iPhone에 테스트용 실내 위치와 센서 데이터를 전달합니다.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_indoor-sim._tcp</string>
+	</array>
 </dict>
 </plist>

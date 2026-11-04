@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import IndoorPositioningSimulation
 import Observation
+import SystemConfiguration
 import UniformTypeIdentifiers
 
 @MainActor
@@ -91,6 +92,9 @@ final class SimulatorAppModel {
             server.onClientCountChanged = { [weak self] count in
                 self?.connectedClientCount = count
             }
+            server.onError = { [weak self] error in
+                self?.errorMessage = "센서 서버를 시작하지 못했습니다. 이전 Mac 시뮬레이터를 종료하고 다시 실행하세요.\n\(error.localizedDescription)"
+            }
             try server.start()
             sessionServer = server
         } catch {
@@ -108,6 +112,13 @@ final class SimulatorAppModel {
     }
 
     var isWalking: Bool { !activeDirections.isEmpty }
+
+    var controllerHostName: String {
+        if let name = SCDynamicStoreCopyLocalHostName(nil) as String? {
+            return "\(name).local"
+        }
+        return ProcessInfo.processInfo.hostName
+    }
 
     var positioningMode: SimulationPositioningMode {
         usesRadioPositioning ? .radioBased : .groundTruth
