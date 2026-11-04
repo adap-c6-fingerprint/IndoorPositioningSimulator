@@ -5,7 +5,7 @@
 ## 0. 한 번 설치한 뒤에는 화면에서 연결하기
 
 1. Mac 컨트롤러의 **블루닷 빠른 연결 → 블루닷 연결 준비**를 누른다. 길찾기 QA 모드와 서버를 준비한다.
-2. Po:book **Debug 지도 오른쪽 위 → 시뮬레이터**를 누른다.
+2. Po:book Debug 앱의 탭바에서 **홈을 5번 연속** 누른다. 이미 홈이 선택돼 있어도 동작하며, 탭 사이 간격이 1초를 넘거나 다른 탭을 누르면 횟수가 초기화된다.
 3. **Mac 시뮬레이터 사용**을 켜고 **연결 / 다시 연결**을 누른다. 주소를 비우면 iOS Simulator는 현재 Mac에, 실제 iPhone은 같은 네트워크에서 검색한 Mac에 연결한다.
 4. 필요하면 이 화면에서 Mac 주소·포트를 지정한다. 상태가 **Mac 위치 수신 중**으로 표시되고 블루닷이 따라 움직이는지 확인한다.
 5. 실제 위치로 돌아가려면 토글을 끄고 **실제 위치로 전환**을 누른다.
@@ -323,11 +323,13 @@ dns-sd -B _indoor-sim._tcp local.
 
 | 파일 | 역할 |
 | --- | --- |
+| `fingerprint-library/App/HomeTabDebugTrigger.swift` | 기본 탭 동작을 유지하면서 홈 5회 연속 입력 감지 |
+| `fingerprint-library/App/AppView.swift` | Debug에서 설정 팝업 표시 |
 | `fingerprint-library/Clients/Location/IndoorLocationClient.swift` | 실제 위치 / 시뮬레이션 공급자 선택 |
 | `fingerprint-library/Clients/Location/Simulation/IndoorSimulationLocationProvider.swift` | 환경 변수, Bonjour 검색, 직접 주소 연결, 1초 간격 재시도, 5초 수신 timeout |
 | `fingerprint-library/Clients/Location/Simulation/IndoorSimulationFrame.swift` | 위치 프레임 디코딩·길이·모드·시간 검증 |
 | `fingerprint-library/Clients/Location/Simulation/IndoorSimulationSettings.swift` | Debug 화면의 연결 설정 저장·실행 환경보다 우선하는 설정 해석 |
-| `fingerprint-library/Features/IndoorMap/Components/Map/SimulationConnectionControl.swift` | 지도 연결 버튼·주소 입력·재연결·실제 위치 전환 화면 |
+| `fingerprint-library/Features/IndoorMap/Components/Map/SimulationConnectionSheet.swift` | 홈 5회 입력으로 여는 주소·재연결·실제 위치 전환 설정 팝업 |
 | `fingerprint-library/Info.plist` | 로컬 네트워크 설명과 `_indoor-sim._tcp` 선언 |
 | `fingerprint-library.xcodeproj/xcshareddata/xcschemes/Po-book-Mac-Simulation.xcscheme` | Debug 실행 시 `INDOOR_POSITION_SOURCE=simulation` 전달 |
 | `IndoorMapTests/IndoorSimulationTests.swift` | 실행 모드, 주소 선택, 프레임, 직접 TCP·Bonjour 재연결 테스트 |
@@ -384,6 +386,8 @@ xcodebuild test \
   -configuration Debug \
   -destination 'platform=iOS Simulator,id=<SIMULATOR_UDID>' \
   -hideShellScriptEnvironment \
+  -only-testing:IndoorMapTests/HomeTabTapSequenceTests \
+  -only-testing:IndoorMapTests/IndoorMapSerialTests/HomeTabDebugTriggerTests \
   -only-testing:IndoorMapTests/IndoorSimulationFrameTests \
   -only-testing:IndoorMapTests/IndoorMapSerialTests/IndoorSimulationTransportTests \
   -only-testing:IndoorMapTests/IndoorMapSerialTests/IndoorSimulationReconnectTests \
@@ -393,6 +397,13 @@ xcodebuild test \
 의존성 신뢰 확인이나 Xcode 구성요소 설치가 필요하면 해당 환경에서 먼저 해결한다. `CODE_SIGNING_ALLOWED=NO`는 여기의 **Simulator 자동 검사** 예시다. 실제 iPhone에 설치할 빌드에는 개발 서명이 필요하다.
 
 ## 15. 기존 검증 결과와 남은 확인
+
+홈 5회 설정 진입 변경에서 확인한 사실:
+
+- 입력 순서·초기화·기존 탭 동작 유지·SwiftUI 탭바 연결을 포함한 관련 iOS 검사 16개가 통과했다.
+- 사용자가 iOS Simulator에서 홈 5회로 설정 팝업이 열리고 지도 연결 버튼이 사라진 것을 확인했다.
+- Release 빌드가 성공했고 홈 입력 감지기·설정 팝업의 심볼이 배포 앱에서 제외되며 Core Location 공급자가 남아 있음을 확인했다. 검증에는 비운영 테스트 토큰을 사용했고 해당 산출물은 설치·배포하지 않았다.
+- 이 진입 방식의 실제 iPhone 화면 확인은 아직 수행하지 않았다.
 
 최신 Debug/Release 기본값 변경에서 확인한 사실:
 
