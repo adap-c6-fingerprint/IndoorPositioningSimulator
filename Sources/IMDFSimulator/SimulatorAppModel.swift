@@ -13,6 +13,7 @@ final class SimulatorAppModel {
     private static let lastIMDFPathKey = "IndoorSensorSimulator.lastIMDFPath"
     private static let selectedSimulatorIDKey = "IndoorSensorSimulator.selectedSimulatorID"
     private static let mapPathsKey = "IndoorSensorSimulator.mapPaths"
+    private static let usesRadioPositioningKey = "IndoorSensorSimulator.usesRadioPositioning"
 
     enum Selection: Equatable {
         case user
@@ -34,6 +35,7 @@ final class SimulatorAppModel {
     var usesRadioPositioning = true {
         didSet {
             guard usesRadioPositioning != oldValue else { return }
+            defaults.set(usesRadioPositioning, forKey: Self.usesRadioPositioningKey)
             sensorGenerator.invalidateRadioObservations()
             publishFrame(
                 deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz
@@ -86,6 +88,7 @@ final class SimulatorAppModel {
         selectedSimulatorID = defaults.string(
             forKey: Self.selectedSimulatorIDKey
         )
+        usesRadioPositioning = defaults.object(forKey: Self.usesRadioPositioningKey) as? Bool ?? true
         guard startsServices else { return }
         do {
             let server = try SimulationSessionServer()

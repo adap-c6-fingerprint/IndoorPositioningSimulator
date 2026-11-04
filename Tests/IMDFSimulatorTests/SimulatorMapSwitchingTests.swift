@@ -5,6 +5,20 @@ import Testing
 
 @MainActor
 struct SimulatorMapSwitchingTests {
+    @Test("길찾기 QA 모드를 재실행해도 유지하고 Wi-Fi 측위로 다시 전환할 수 있다")
+    func remembersPositioningMode() throws {
+        try withFixture { defaults, _, _ in
+            let model = SimulatorAppModel(defaults: defaults, startsServices: false)
+            #expect(model.positioningMode == .radioBased)
+            model.usesRadioPositioning = false
+            let reopened = SimulatorAppModel(defaults: defaults, startsServices: false)
+            #expect(reopened.positioningMode == .groundTruth)
+            reopened.usesRadioPositioning = true
+            let reopenedAgain = SimulatorAppModel(defaults: defaults, startsServices: false)
+            #expect(reopenedAgain.positioningMode == .radioBased)
+        }
+    }
+
     @Test("등록한 두 도면 경로를 다음 실행에서도 사용한다")
     func remembersRegistrations() throws {
         try withFixture { defaults, first, second in
