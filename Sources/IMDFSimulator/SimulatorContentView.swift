@@ -278,7 +278,7 @@ private struct SimulatorInspector: View {
                 }
                 .disabled(model.isRestartingSensorServer || model.sensorServerState == .starting)
                 .accessibilityIdentifier("restart-sensor-server")
-                Text("연결 준비를 누른 뒤 Po:book 지도의 ‘시뮬레이터’에서 연결하세요. 지도와 가상 사용자 위치는 유지됩니다.")
+                Text("연결 준비를 누른 뒤 Po:book에서 홈 탭을 5번 연속 눌러 설정을 열고 ‘연결 / 다시 연결’을 누르세요. 지도와 가상 사용자 위치는 유지됩니다.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
