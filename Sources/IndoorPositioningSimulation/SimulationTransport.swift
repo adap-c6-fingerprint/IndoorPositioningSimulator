@@ -4,6 +4,7 @@ import Foundation
 public enum SimulationTransportDefaults {
     public static let host = "127.0.0.1"
     public static let port: UInt16 = 57_575
+    public static let serviceType = "_indoor-sim._tcp"
 }
 
 public enum SimulationTransportError: Error, LocalizedError {
@@ -20,12 +21,13 @@ public enum SimulationTransportError: Error, LocalizedError {
     }
 }
 
-/// TCP publisher hosted by the Mac controller. Multiple Simulator apps may
+/// TCP publisher hosted by the Mac controller. Simulator and physical-device apps may
 /// subscribe at once; reconnecting an app creates a new connection without
 /// resetting the controller session.
 @MainActor
 public final class SimulationSessionServer {
     public var onClientCountChanged: (@MainActor (Int) -> Void)?
+    public var onError: (@MainActor (NWError) -> Void)?
     public private(set) var connectedClientCount = 0
 
     private let port: NWEndpoint.Port
@@ -48,15 +50,18 @@ public final class SimulationSessionServer {
     public func start() throws {
         guard listener == nil else { return }
         let listener = try NWListener(using: .tcp, on: port)
+        listener.service = NWListener.Service(type: SimulationTransportDefaults.serviceType)
         listener.newConnectionHandler = { [weak self] connection in
             Task { @MainActor [weak self] in
                 self?.accept(connection)
             }
         }
-        listener.stateUpdateHandler = { [weak self] state in
-            guard case .failed = state else { return }
+        listener.stateUpdateHandler = { [weak self, weak listener] state in
+            guard case .failed(let error) = state else { return }
             Task { @MainActor [weak self] in
-                self?.stop()
+                guard let self, let listener, self.listener === listener else { return }
+                self.stop()
+                self.onError?(error)
             }
         }
         self.listener = listener

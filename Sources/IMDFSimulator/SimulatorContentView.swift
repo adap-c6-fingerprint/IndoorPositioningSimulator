@@ -36,7 +36,7 @@ struct SimulatorContentView: View {
                     }
                     VStack(alignment: .leading, spacing: 14) {
                         startStep(1, "IMDF 지도 열기", "폴더 또는 ZIP을 선택하세요.")
-                        startStep(2, "iOS Simulator 실행", "Xcode에서 테스트할 앱을 실행하세요.")
+                        startStep(2, "iPhone 또는 iOS Simulator 실행", "Xcode에서 테스트할 앱을 실행하세요.")
                         startStep(3, "방향키로 이동", "화면 방향 버튼으로도 움직일 수 있습니다.")
                     }
                     Button("1단계 · IMDF 지도 열기…", systemImage: "folder.badge.plus") {
@@ -88,7 +88,7 @@ private struct SimulatorStatusBar: View {
                 color: .blue
             )
             status(
-                "위치 대상",
+                "Core Location 대상",
                 value: model.selectedSimulator?.name ?? "선택 필요",
                 systemImage: "iphone",
                 color: model.selectedSimulator == nil ? .orange : .green
@@ -268,8 +268,9 @@ private struct SimulatorInspector: View {
                         .foregroundStyle(.green)
 
                     if model.bootedSimulators.isEmpty {
-                        Label("iOS Simulator를 먼저 실행하세요", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
+                        Text("실제 iPhone은 아래 ‘iPhone 연결’ 안내를 따라 연결하세요.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     } else {
                         Picker("위치 보낼 기기", selection: $model.selectedSimulatorID) {
                             ForEach(model.bootedSimulators) { simulator in
@@ -400,6 +401,19 @@ private struct SimulatorInspector: View {
                         }
                     }
                 }
+            }
+
+            Section("iPhone 연결") {
+                Text("Mac과 iPhone을 같은 Wi-Fi에 연결한 뒤 앱을 테스트 모드로 실행하세요.")
+                Text("Po:book은 Xcode의 ‘Po-book-Mac-Simulation’ scheme으로 실행하면 이 Mac을 자동으로 찾습니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                LabeledContent("직접 연결 주소", value: model.controllerHostName)
+                    .textSelection(.enabled)
+                LabeledContent("포트", value: String(SimulationTransportDefaults.port))
+                Text("iPhone의 로컬 네트워크 접근을 허용하세요. Core Location 주입은 iOS Simulator 전용이며, iPhone은 앱의 위치 브리지로 연결합니다.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("iOS Simulator 연결") {

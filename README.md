@@ -10,6 +10,7 @@
 | --- | --- |
 | **Indoor Sensor Simulator** — Mac 앱 | 지도를 열고 가상 사용자·공유기·비콘을 조작하는 컨트롤러 |
 | **Xcode의 iOS Simulator** — 가상 iPhone/iPad | 테스트할 iOS 앱을 실행하고, Mac 컨트롤러가 보내는 위치나 센서 데이터를 받는 기기 |
+| **실제 iPhone** — Debug 앱 | 같은 Wi-Fi에서 Mac 컨트롤러의 가상 위치·센서 데이터를 앱의 입력 브리지로 수신 |
 
 **바로가기:** [설치하기](#1-설치하기) · [첫 테스트](#2-첫-테스트) · [조작법](#3-기본-조작법) · [센서 연결](#4-ios-앱에-센서-데이터-연결하기) · [문제 해결](#5-문제가-생겼을-때) · [기술 설명](#6-동작-구조와-기술-설명)
 
@@ -162,7 +163,29 @@ iOS 앱에 현재 위치 표시나 길찾기 기능이 없다면 이 도구가 �
 
 ## 4. iOS 앱에 센서 데이터 연결하기
 
-**좌표 전달을 넘어, 가짜 Wi-Fi·BLE 관측값과 움직임 센서, 층·방향을 앱에서 받아야 할 때 진행합니다.** 같은 Mac에서 실행하는 iOS Simulator 앱이 Swift 패키지의 클라이언트로 Mac 컨트롤러에 연결하는 방식입니다.
+**좌표 전달을 넘어, 가짜 Wi-Fi·BLE 관측값과 움직임 센서, 층·방향을 앱에서 받아야 할 때 진행합니다.** iOS Simulator 또는 실제 iPhone 앱이 TCP 클라이언트로 Mac 컨트롤러에 연결하는 방식입니다.
+
+### 실제 iPhone / Po:book 연결
+
+`postech-library`에는 별도 패키지 추가 없이 위치·층·방향을 읽는 Debug 브리지가 있습니다.
+
+1. Mac과 iPhone을 **같은 Wi-Fi**에 연결합니다.
+2. 이 프로젝트에서 `./Scripts/build-app.sh`로 다시 빌드한 Mac 앱을 실행합니다. 이전 버전이 열려 있다면 종료한 뒤 새 버전을 엽니다.
+3. Mac에 앱과 같은 도서관 IMDF를 열고 **Wi-Fi 위치 기반 측위**를 끕니다.
+4. `postech-library/fingerprint-library.xcodeproj`에서 **Po-book-Mac-Simulation** scheme과 실제 iPhone을 선택해 `⌘R`합니다.
+5. iPhone에서 **로컬 네트워크 접근**을 허용하고 지도 화면을 엽니다. Mac의 **센서 브리지 1개 앱** 표시를 확인한 뒤 방향키로 이동합니다.
+
+Mac은 Bonjour `_indoor-sim._tcp` 서비스를 알리고, Po:book은 이를 자동 검색합니다.
+검색이 막히면 Xcode의 **Edit Scheme → Run → Arguments → Environment Variables**에서
+`INDOOR_SIMULATOR_HOST`를 활성화하고 Mac 앱의 **iPhone 연결 → 직접 연결 주소** 또는 Wi-Fi IP를 입력하세요.
+TCP 포트는 기본 `57575`입니다. USB는 설치·디버깅에 쓸 수 있으며 데이터 연결에는 같은 로컬 네트워크가 필요합니다.
+
+Po:book을 완전히 종료한 뒤 기본 scheme이나 홈 화면에서 새로 실행하면 실제 iPhone의 실제 위치를 사용합니다.
+실제 iPhone의 가상 위치는 앱의 Debug 위치 공급자로 전달됩니다. **Core Location도 주입** 토글은 iOS Simulator 전용입니다.
+로컬 네트워크 권한은 [Apple의 로컬 네트워크 안내](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)를 참고하세요.
+
+다른 iOS 앱은 아래 패키지 클라이언트에 Mac 주소를 `SimulationSessionClient(host: "My-Mac.local")`로 지정하고
+앱의 `Info.plist`에 `NSLocalNetworkUsageDescription`을 추가하세요. Bonjour를 직접 검색하는 앱은 `NSBonjourServices`에도 `_indoor-sim._tcp`를 선언해야 합니다.
 
 ### ① Swift 패키지를 추가합니다
 
