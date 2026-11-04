@@ -169,6 +169,8 @@ iOS 앱에 현재 위치 표시나 길찾기 기능이 없다면 이 도구가 �
 
 다른 Mac에 처음 설치하거나 다른 AI에게 작업을 인계한다면 [상세 설정·검증 가이드](Docs/PhysicalDeviceSetup.md)를 따라 진행하세요.
 
+**이후 빠른 연결:** Mac의 **블루닷 빠른 연결 → 블루닷 연결 준비**, Po:book Debug 지도의 **시뮬레이터 → 연결 / 다시 연결**을 차례로 누릅니다. 앱 안에서 자동 연결·직접 Mac 주소·실제 위치 전환을 선택할 수 있고 설정은 저장됩니다. Mac 서버가 꺼졌거나 충돌했다면 상태 안내를 확인하고 **센서 서버 다시 연결**을 누르세요. 지도와 가상 사용자 위치는 유지됩니다.
+
 `postech-library`에는 별도 패키지 추가 없이 위치·층·방향을 읽는 Debug 브리지가 있습니다.
 
 1. Mac과 iPhone을 **같은 Wi-Fi**에 연결합니다.
@@ -182,7 +184,7 @@ Mac은 Bonjour `_indoor-sim._tcp` 서비스를 알리고, Po:book은 이를 자�
 `INDOOR_SIMULATOR_HOST`를 활성화하고 Mac 앱의 **iPhone 연결 → 직접 연결 주소** 또는 Wi-Fi IP를 입력하세요.
 TCP 포트는 기본 `57575`입니다. USB는 설치·디버깅에 쓸 수 있으며 데이터 연결에는 같은 로컬 네트워크가 필요합니다.
 
-Po:book을 완전히 종료한 뒤 기본 scheme이나 홈 화면에서 새로 실행하면 실제 iPhone의 실제 위치를 사용합니다.
+Po:book 앱 안에 별도로 저장한 연결 설정이 없다면, 완전히 종료한 뒤 기본 scheme이나 홈 화면에서 새로 실행할 때 실제 iPhone의 실제 위치를 사용합니다. 앱 안에서 저장한 설정은 **시뮬레이터 → 실행 설정으로 되돌리기**로 해제합니다.
 실제 iPhone의 가상 위치는 앱의 Debug 위치 공급자로 전달됩니다. **Core Location도 주입** 토글은 iOS Simulator 전용입니다.
 로컬 네트워크 권한은 [Apple의 로컬 네트워크 안내](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)를 참고하세요.
 

@@ -95,7 +95,7 @@ private struct SimulatorStatusBar: View {
             )
             status(
                 "센서 브리지",
-                value: "\(model.connectedClientCount)개 앱",
+                value: model.sensorConnectionStatus,
                 systemImage: "dot.radiowaves.left.and.right",
                 color: model.connectedClientCount == 0 ? .secondary : .green
             )
@@ -262,6 +262,26 @@ private struct SimulatorInspector: View {
 
     var body: some View {
         Form {
+            Section("블루닷 빠른 연결") {
+                Label(model.sensorConnectionStatus, systemImage: "dot.radiowaves.left.and.right")
+                    .foregroundStyle(model.connectedClientCount > 0 ? Color.green : Color.secondary)
+                if case .failed(let message) = model.sensorServerState {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+                Button("블루닷 연결 준비", systemImage: "link") {
+                    model.prepareBlueDotConnection()
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("prepare-bluedot-connection")
+                Button("센서 서버 다시 연결", systemImage: "arrow.clockwise") {
+                    model.restartSensorServer()
+                }
+                .disabled(model.isRestartingSensorServer || model.sensorServerState == .starting)
+                .accessibilityIdentifier("restart-sensor-server")
+                Text("연결 준비를 누른 뒤 Po:book 지도의 ‘시뮬레이터’에서 연결하세요. 지도와 가상 사용자 위치는 유지됩니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             if let snapshot = model.snapshot {
                 Section("빠른 시작") {
                     Label("지도 준비 완료", systemImage: "checkmark.circle.fill")

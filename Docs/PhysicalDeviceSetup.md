@@ -2,6 +2,20 @@
 
 작성 기준: 2026-11-04. 이 파일만 전달받은 사람이나 AI가 새 Mac에서 설치·연결·검증을 이어갈 수 있도록 작성했다.
 
+## 0. 한 번 설치한 뒤에는 화면에서 연결하기
+
+1. Mac 컨트롤러의 **블루닷 빠른 연결 → 블루닷 연결 준비**를 누른다. 길찾기 QA 모드와 서버를 준비한다.
+2. Po:book **Debug 지도 오른쪽 위 → 시뮬레이터**를 누른다.
+3. **Mac 시뮬레이터 사용**을 켜고 **연결 / 다시 연결**을 누른다. 주소를 비우면 iOS Simulator는 현재 Mac에, 실제 iPhone은 같은 네트워크에서 검색한 Mac에 연결한다.
+4. 필요하면 이 화면에서 Mac 주소·포트를 지정한다. 상태가 **Mac 위치 수신 중**으로 표시되고 블루닷이 따라 움직이는지 확인한다.
+5. 실제 위치로 돌아가려면 토글을 끄고 **실제 위치로 전환**을 누른다.
+
+화면에서 저장한 설정은 Debug 앱을 다시 열어도 유지되고 실행 환경 변수보다 우선한다. **실행 설정으로 되돌리기**는 이 저장값을 지우고 기존 scheme과 기기별 기본값으로 돌아간다. 이 기능을 사용하면 매번 scheme을 변경하거나 앱을 재실행하지 않아도 된다. 최초 설치·서명은 아래 절차대로 진행한다.
+
+Mac에 포트 충돌이 표시되면 기존 컨트롤러를 `⌘Q`로 종료하고 **센서 서버 다시 연결**을 누른다. 이 버튼은 지도와 가상 사용자 위치를 유지한다.
+
+빠른 연결 기능의 검증: Mac 검사 16개와 iOS 관련 검사 20개가 통과했고 실제 iPhone 대상 Debug 빌드도 통과했다. Mac은 포트 충돌·활성 클라이언트가 붙은 서버의 재시작을, iOS는 설정 저장·초기화·이전 위치 스트림 취소 후 새 위치 수신을 포함한다. 최신 앱을 설치한 iOS Simulator에서 사용자가 연결 화면을 열고 다시 연결한 뒤 **Mac 위치 수신 중** 표시를 확인했다. 실제 iPhone의 새 연결 화면 조작은 별도로 남는다.
+
 ## 1. 목표와 작업 범위
 
 **Mac의 Indoor Sensor Simulator에서 가상 사용자를 움직이면, 실제 iPhone의 Po:book 앱이 그 위치·층·방향을 받아 지도에 표시하게 한다.**
@@ -213,9 +227,9 @@ Xcode 상단에서 아래와 같이 선택한다.
 
 ### 앱을 다시 실행할 때 주의할 동작
 
-- 실제 iPhone의 기본 실행은 실제 Core Location을 사용한다.
+- 앱 안에 저장한 사용자 설정이 없을 때 실제 iPhone의 기본 실행은 실제 Core Location을 사용한다.
 - 실제 iPhone의 Debug 빌드에 `INDOOR_POSITION_SOURCE=simulation`을 전달했을 때 Mac 위치 공급자를 선택한다.
-- 앱을 완전히 종료한 뒤 홈 화면 아이콘으로 새로 실행하면 Xcode scheme의 환경 변수가 전달되지 않는다. Mac 연동 테스트는 **Po-book-Mac-Simulation → 실제 iPhone → ⌘R**로 시작한다.
+- 앱을 완전히 종료한 뒤 홈 화면 아이콘으로 새로 실행하면 Xcode scheme의 환경 변수가 전달되지 않는다. 사용자 설정이 없으면 **Po-book-Mac-Simulation → 실제 iPhone → ⌘R**로 시작하거나, Debug 지도의 **시뮬레이터** 화면에서 Mac 연결을 저장한다.
 - 테스트 중 연결이 끊겼다고 실제 위치로 자동 전환하지 않는다. 가상 위치를 비우고 Mac에 다시 연결한다.
 - Release에서는 이 TCP 위치 공급 코드를 포함하지 않는다. 이 설정을 TestFlight/App Store 설치본에 그대로 적용할 수 있다고 가정하지 않는다.
 
@@ -278,7 +292,7 @@ cp Secrets.example.xcconfig Secrets.xcconfig
 | 복수 컨트롤러 안내 | 불필요한 컨트롤러를 종료하거나 `INDOOR_SIMULATOR_HOST`로 대상을 지정 |
 | 연결 직후 오래되거나 유효하지 않은 위치 오류 | Mac과 iPhone의 날짜·시간 및 수신 중인 좌표를 확인. 프레임의 시간 검증을 무작정 제거하지 않음 |
 | 기기에는 빌드되지만 책 검색 실패 | 지도 연결 문제와 분리해 개발 중계 토큰·API 오류를 확인 |
-| 홈 화면으로 새로 열자 실제 위치로 바뀜 | 앱을 완전히 종료한 뒤 scheme의 환경 변수 없이 시작한 경우의 기본 동작. Xcode 테스트 scheme으로 다시 실행 |
+| 홈 화면으로 새로 열자 실제 위치로 바뀜 | 사용자 설정 없이 scheme의 환경 변수로만 연결했던 경우의 기본 동작. Debug 지도의 시뮬레이터 화면에서 Mac 연결을 저장하거나 Xcode 테스트 scheme으로 다시 실행 |
 
 ### Mac에서 확인할 수 있는 진단 명령
 
@@ -310,12 +324,16 @@ dns-sd -B _indoor-sim._tcp local.
 | `fingerprint-library/Clients/Location/IndoorLocationClient.swift` | 실제 위치 / 시뮬레이션 공급자 선택 |
 | `fingerprint-library/Clients/Location/Simulation/IndoorSimulationLocationProvider.swift` | 환경 변수, Bonjour 검색, 직접 주소 연결, 1초 간격 재시도, 5초 수신 timeout |
 | `fingerprint-library/Clients/Location/Simulation/IndoorSimulationFrame.swift` | 위치 프레임 디코딩·길이·모드·시간 검증 |
+| `fingerprint-library/Clients/Location/Simulation/IndoorSimulationSettings.swift` | Debug 화면의 연결 설정 저장·실행 환경보다 우선하는 설정 해석 |
+| `fingerprint-library/Features/IndoorMap/Components/Map/SimulationConnectionControl.swift` | 지도 연결 버튼·주소 입력·재연결·실제 위치 전환 화면 |
 | `fingerprint-library/Info.plist` | 로컬 네트워크 설명과 `_indoor-sim._tcp` 선언 |
 | `fingerprint-library.xcodeproj/xcshareddata/xcschemes/Po-book-Mac-Simulation.xcscheme` | Debug 실행 시 `INDOOR_POSITION_SOURCE=simulation` 전달 |
 | `IndoorMapTests/IndoorSimulationTests.swift` | 실행 모드, 주소 선택, 프레임, 직접 TCP·Bonjour 재연결 테스트 |
 | `Docs/IndoorMapSimulation.md` | 앱 측 연결 안내와 기존 검증 기록 |
 
 실행 모드의 기준:
+
+다음 표는 앱 안에 사용자 설정을 저장하지 않은 경우다. 저장한 설정이 있으면 화면의 선택을 우선하며, **실행 설정으로 되돌리기**로 표의 동작을 복원할 수 있다.
 
 | 실행 환경 | `INDOOR_POSITION_SOURCE` | 위치 공급자 / 연결 |
 | --- | --- | --- |
@@ -366,6 +384,7 @@ xcodebuild test \
   -hideShellScriptEnvironment \
   -only-testing:IndoorMapTests/IndoorSimulationFrameTests \
   -only-testing:IndoorMapTests/IndoorMapSerialTests/IndoorSimulationTransportTests \
+  -only-testing:IndoorMapTests/IndoorMapSerialTests/IndoorSimulationReconnectTests \
   CODE_SIGNING_ALLOWED=NO
 ```
 
