@@ -13,6 +13,7 @@ final class SimulatorAppModel {
     private static let lastIMDFPathKey = "IndoorSensorSimulator.lastIMDFPath"
     private static let selectedSimulatorIDKey = "IndoorSensorSimulator.selectedSimulatorID"
     private static let mapPathsKey = "IndoorSensorSimulator.mapPaths"
+    private static let usesRadioPositioningKey = "IndoorSensorSimulator.usesRadioPositioning"
 
     enum Selection: Equatable {
         case user
@@ -26,6 +27,8 @@ final class SimulatorAppModel {
     private(set) var snapshot: SimulationSnapshot?
     private(set) var latestFrame: SimulationSensorFrame?
     private(set) var connectedClientCount = 0
+    private(set) var sensorServerState: SimulationServerState = .stopped
+    private(set) var isRestartingSensorServer = false
     private(set) var bootedSimulators: [BootedXcodeSimulator] = []
     private(set) var coreLocationStatus = "대기 중"
     private(set) var selectedMapPreset: SimulatorMapPreset?
@@ -34,6 +37,7 @@ final class SimulatorAppModel {
     var usesRadioPositioning = true {
         didSet {
             guard usesRadioPositioning != oldValue else { return }
+            defaults.set(usesRadioPositioning, forKey: Self.usesRadioPositioningKey)
             sensorGenerator.invalidateRadioObservations()
             publishFrame(
                 deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz
@@ -79,6 +83,7 @@ final class SimulatorAppModel {
     private var sensorGenerator = SimulatedSensorGenerator()
     private let locationInjector = XcodeSimulatorLocationInjector()
     private var sessionServer: SimulationSessionServer?
+    private var serverRestartTask: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard, startsServices: Bool = true) {
         self.defaults = defaults
@@ -86,20 +91,9 @@ final class SimulatorAppModel {
         selectedSimulatorID = defaults.string(
             forKey: Self.selectedSimulatorIDKey
         )
+        usesRadioPositioning = defaults.object(forKey: Self.usesRadioPositioningKey) as? Bool ?? true
         guard startsServices else { return }
-        do {
-            let server = try SimulationSessionServer()
-            server.onClientCountChanged = { [weak self] count in
-                self?.connectedClientCount = count
-            }
-            server.onError = { [weak self] error in
-                self?.errorMessage = "센서 서버를 시작하지 못했습니다. 이전 Mac 시뮬레이터를 종료하고 다시 실행하세요.\n\(error.localizedDescription)"
-            }
-            try server.start()
-            sessionServer = server
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        restartSensorServer()
         startClock()
         Task { @MainActor [weak self] in
             await self?.refreshBootedSimulators()
@@ -112,6 +106,49 @@ final class SimulatorAppModel {
     }
 
     var isWalking: Bool { !activeDirections.isEmpty }
+
+    var sensorConnectionStatus: String {
+        switch sensorServerState {
+        case .stopped: "연결 서버 꺼짐"
+        case .starting: "연결 준비 중"
+        case .listening: connectedClientCount > 0 ? "앱 \(connectedClientCount)개 연결됨" : "앱 연결 대기"
+        case .failed: "연결할 수 없음"
+        }
+    }
+
+    func prepareBlueDotConnection() {
+        usesRadioPositioning = false
+        switch sensorServerState {
+        case .listening, .starting: break
+        case .stopped, .failed: restartSensorServer()
+        }
+    }
+
+    func restartSensorServer() {
+        guard !isRestartingSensorServer else { return }
+        isRestartingSensorServer = true
+        serverRestartTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isRestartingSensorServer = false }
+            do {
+                if self.sessionServer == nil {
+                    let server = try SimulationSessionServer()
+                    server.onClientCountChanged = { [weak self] count in
+                        self?.connectedClientCount = count
+                    }
+                    server.onStateChanged = { [weak self] state in
+                        self?.sensorServerState = state
+                    }
+                    self.sessionServer = server
+                }
+                try await self.sessionServer?.restart()
+            } catch is CancellationError {
+                // A newer lifecycle request superseded this restart.
+            } catch {
+                self.sensorServerState = .failed(error.localizedDescription)
+            }
+        }
+    }
 
     var controllerHostName: String {
         if let name = SCDynamicStoreCopyLocalHostName(nil) as String? {

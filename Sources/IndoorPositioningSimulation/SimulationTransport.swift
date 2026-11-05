@@ -21,6 +21,13 @@ public enum SimulationTransportError: Error, LocalizedError {
     }
 }
 
+public enum SimulationServerState: Equatable, Sendable {
+    case stopped
+    case starting
+    case listening
+    case failed(String)
+}
+
 /// TCP publisher hosted by the Mac controller. Simulator and physical-device apps may
 /// subscribe at once; reconnecting an app creates a new connection without
 /// resetting the controller session.
@@ -28,11 +35,18 @@ public enum SimulationTransportError: Error, LocalizedError {
 public final class SimulationSessionServer {
     public var onClientCountChanged: (@MainActor (Int) -> Void)?
     public var onError: (@MainActor (NWError) -> Void)?
+    public var onStateChanged: (@MainActor (SimulationServerState) -> Void)?
     public private(set) var connectedClientCount = 0
+    public private(set) var state: SimulationServerState = .stopped {
+        didSet { if state != oldValue { onStateChanged?(state) } }
+    }
+    public var listeningPort: UInt16? { listener?.port?.rawValue }
 
     private let port: NWEndpoint.Port
     private let queue = DispatchQueue(label: "IndoorPositioningSimulation.server")
     private var listener: NWListener?
+    private var shutdownTask: Task<Void, Never>?
+    private var lifecycleGeneration = 0
     private var connections: [UUID: NWConnection] = [:]
 
     public init(port: UInt16 = SimulationTransportDefaults.port) throws {
@@ -50,18 +64,37 @@ public final class SimulationSessionServer {
     public func start() throws {
         guard listener == nil else { return }
         let listener = try NWListener(using: .tcp, on: port)
+        lifecycleGeneration += 1
         listener.service = NWListener.Service(type: SimulationTransportDefaults.serviceType)
-        listener.newConnectionHandler = { [weak self] connection in
+        state = .starting
+        listener.newConnectionHandler = { [weak self, weak listener] connection in
             Task { @MainActor [weak self] in
-                self?.accept(connection)
+                guard let self, let listener, self.listener === listener else {
+                    connection.cancel()
+                    return
+                }
+                self.accept(connection)
             }
         }
         listener.stateUpdateHandler = { [weak self, weak listener] state in
-            guard case .failed(let error) = state else { return }
             Task { @MainActor [weak self] in
                 guard let self, let listener, self.listener === listener else { return }
-                self.stop()
-                self.onError?(error)
+                switch state {
+                case .ready:
+                    self.state = .listening
+                case .failed(let error), .waiting(let error):
+                    self.stop()
+                    let message: String
+                    if case .posix(.EADDRINUSE) = error {
+                        message = "다른 컨트롤러가 연결을 사용 중입니다. 기존 앱을 ⌘Q로 종료한 뒤 다시 연결하세요."
+                    } else {
+                        message = error.localizedDescription
+                    }
+                    self.state = .failed(message)
+                    self.onError?(error)
+                default:
+                    break
+                }
             }
         }
         self.listener = listener
@@ -69,11 +102,40 @@ public final class SimulationSessionServer {
     }
 
     public func stop() {
-        listener?.cancel()
-        listener = nil
+        lifecycleGeneration += 1
+        if let listener {
+            self.listener = nil
+            let completion = AsyncStream<Void> { continuation in
+                listener.stateUpdateHandler = { state in
+                    if case .cancelled = state { continuation.finish() }
+                }
+                listener.cancel()
+            }
+            let previous = shutdownTask
+            shutdownTask = Task {
+                await previous?.value
+                for await _ in completion { }
+            }
+        }
         connections.values.forEach { $0.cancel() }
         connections.removeAll()
         publishClientCount()
+        state = .stopped
+    }
+
+    public func stopAndWait() async {
+        stop()
+        await shutdownTask?.value
+    }
+
+    /// Wait for the old listening socket to close before binding the same port.
+    public func restart() async throws {
+        stop()
+        let generation = lifecycleGeneration
+        await shutdownTask?.value
+        try Task.checkCancellation()
+        guard generation == lifecycleGeneration else { throw CancellationError() }
+        try start()
     }
 
     public func broadcast(_ frame: SimulationSensorFrame) throws {
