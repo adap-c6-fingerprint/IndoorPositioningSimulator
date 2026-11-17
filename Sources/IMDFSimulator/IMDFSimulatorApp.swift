@@ -26,6 +26,17 @@ struct IMDFSimulatorApp: App {
                 .keyboardShortcut("o", modifiers: [.command, .shift])
             }
 
+            CommandMenu("층 이동") {
+                ForEach(1...9, id: \.self) { ordinal in
+                    Button("\(ordinal)층으로 이동") {
+                        guard let level = model.level(forFloorNumber: ordinal) else { return }
+                        model.selectLevel(level)
+                    }
+                    .keyboardShortcut(KeyEquivalent(Character(String(ordinal))), modifiers: .command)
+                    .disabled(model.level(forFloorNumber: ordinal) == nil)
+                }
+            }
+
             CommandGroup(replacing: .saveItem) {
                 Button("시나리오 저장…") {
                     model.saveScenario()

@@ -57,7 +57,7 @@ public struct IMDFSimulationScenario: Identifiable, Codable, Equatable, Sendable
     public var name: String
     public let map: IMDFMapReference
     public let coordinateReference: LocalCoordinateReference
-    public let localBounds: SimulationBounds
+    public var localBounds: SimulationBounds
     public var initialPosition: IndoorCoordinate
     public var anchors: [ScenarioRadioAnchor]
     public var movementStep: Double

@@ -324,10 +324,24 @@ final class SimulatorAppModel {
         }
     }
 
+    /// IMDF ordinal은 0부터 시작할 수 있어, 단축키는 화면의 층 이름을 따른다.
+    func level(forFloorNumber number: Int) -> IMDFMapLevel? {
+        let names = ["\(number)", "\(number)층", "\(number)F", "F\(number)",
+                     "FLOOR\(number)", "LEVEL\(number)"]
+        return map?.levels.first { level in
+            [level.shortName, level.name].compactMap { $0 }.contains { name in
+                names.contains(name.uppercased().filter { !$0.isWhitespace })
+            }
+        }
+    }
+
     func selectLevel(_ level: IMDFMapLevel) {
-        guard let map else { return }
+        guard let map, selectedLevel?.id != level.id else { return }
+        let coordinate = scenario.flatMap { scenario in
+            simulator.map { scenario.coordinateReference.unproject($0.actualPosition) }
+        }
         do {
-            try configureDefaultScenario(for: level, in: map)
+            try configureDefaultScenario(for: level, in: map, initialCoordinate: coordinate)
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -438,7 +452,7 @@ final class SimulatorAppModel {
         else { return }
 
         let currentCoordinate = scenario.coordinateReference.unproject(simulator.actualPosition)
-        guard let connector = selectedLevel.verticalConnector(containing: currentCoordinate) else {
+        guard selectedLevel.verticalConnector(containing: currentCoordinate) != nil else {
             errorMessage = "엘리베이터·계단·에스컬레이터 영역에서만 층을 이동할 수 있습니다."
             return
         }
@@ -446,17 +460,14 @@ final class SimulatorAppModel {
         let targetIndex = sourceIndex + offset
         guard map.levels.indices.contains(targetIndex) else { return }
         let targetLevel = map.levels[targetIndex]
-        let targetConnector = targetLevel.units.first { $0.category == connector.category }
-        let targetCoordinate = targetConnector?.polygons.first?.approximateCenter
-            ?? targetLevel.suggestedNavigableCoordinate()
 
         do {
             try configureDefaultScenario(
                 for: targetLevel,
                 in: map,
-                initialCoordinate: targetCoordinate
+                initialCoordinate: currentCoordinate
             )
-            publishFrame(deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz)
+            errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -467,29 +478,24 @@ final class SimulatorAppModel {
         in map: IMDFMap,
         initialCoordinate: GeographicCoordinate? = nil
     ) throws {
-        if var cachedScenario = scenariosByLevelID[level.id] {
-            if let initialCoordinate {
-                cachedScenario.initialPosition = IndoorCoordinate(
-                    coordinate: initialCoordinate,
-                    levelOrdinal: level.ordinal
-                )
-            }
-            selectedLevel = level
-            scenario = cachedScenario
-            simulator = try cachedScenario.makeSimulator(calculatesEstimate: false)
-            snapshot = simulator?.snapshot
-            selection = .user
-            scenariosByLevelID[level.id] = cachedScenario
-            sensorGenerator.invalidateRadioObservations()
-            publishFrame(deltaTime: 1 / SimulatedSensorGenerator.defaultMotionFrequencyHertz)
-            return
+        var nextScenario = try scenariosByLevelID[level.id]
+            ?? makeDefaultScenario(for: level, in: map, initialCoordinate: initialCoordinate)
+        if let initialCoordinate {
+            nextScenario.initialPosition = IndoorCoordinate(coordinate: initialCoordinate, levelOrdinal: level.ordinal)
+            // 층 도면의 외곽이 달라도 이전 좌표가 경계에 잘려 이동하지 않게 한다.
+            let point = nextScenario.coordinateReference.project(initialCoordinate)
+            let bounds = nextScenario.localBounds
+            nextScenario.localBounds = SimulationBounds(
+                minimumEast: min(bounds.minimumEast, point.east),
+                maximumEast: max(bounds.maximumEast, point.east),
+                minimumNorth: min(bounds.minimumNorth, point.north),
+                maximumNorth: max(bounds.maximumNorth, point.north)
+            )
         }
-
-        let scenario = try makeDefaultScenario(for: level, in: map, initialCoordinate: initialCoordinate)
-        let nextSimulator = try scenario.makeSimulator(calculatesEstimate: false)
+        let nextSimulator = try nextScenario.makeSimulator(calculatesEstimate: false)
         selectedLevel = level
-        self.scenario = scenario
-        scenariosByLevelID[level.id] = scenario
+        scenario = nextScenario
+        scenariosByLevelID[level.id] = nextScenario
         simulator = nextSimulator
         snapshot = nextSimulator.snapshot
         selection = .user
