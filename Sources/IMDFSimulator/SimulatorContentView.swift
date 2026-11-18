@@ -48,6 +48,15 @@ struct SimulatorContentView: View {
                 .padding(40)
             }
         }
+        .background {
+            SimulatorFloorKeyboardShortcuts { number in
+                guard let level = model.level(forFloorNumber: number) else { return false }
+                model.selectLevel(level)
+                return true
+            }
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
         .alert(
             "시뮬레이터 오류",
             isPresented: Binding(
