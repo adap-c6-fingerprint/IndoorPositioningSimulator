@@ -326,8 +326,21 @@ final class SimulatorAppModel {
 
     /// IMDF ordinal은 0부터 시작할 수 있어, 단축키는 화면의 층 이름을 따른다.
     func level(forFloorNumber number: Int) -> IMDFMapLevel? {
+        let ordinalSuffix: String
+        switch number % 100 {
+        case 11...13: ordinalSuffix = "TH"
+        default:
+            ordinalSuffix = switch number % 10 {
+            case 1: "ST"
+            case 2: "ND"
+            case 3: "RD"
+            default: "TH"
+            }
+        }
+        // 같은 도면도 Mac 언어에 따라 "2층" 또는 "2nd floor"로 읽힌다.
         let names = ["\(number)", "\(number)층", "\(number)F", "F\(number)",
-                     "FLOOR\(number)", "LEVEL\(number)"]
+                     "FLOOR\(number)", "LEVEL\(number)", "L\(number)",
+                     "\(number)\(ordinalSuffix)FLOOR"]
         return map?.levels.first { level in
             [level.shortName, level.name].compactMap { $0 }.contains { name in
                 names.contains(name.uppercased().filter { !$0.isWhitespace })
